@@ -1,0 +1,67 @@
+# WaterLeak App - Test Data Setup Instructions
+
+To test the application flows (especially the map and distance calculations), follow these steps to populate your Supabase project with sample data.
+
+## 1. Create Auth Users (Manual Step)
+Since Auth is handled securely by Supabase, you should manually create at least one Client and one Technician account in your Supabase Dashboard (Authentication > Users > Add User) or by signing up through the app.
+
+**Recommended Test Accounts:**
+- **Technician:** tech@test.com / password123
+- **Client:** client@test.com / password123
+
+---
+
+## 2. Populate Public Tables (SQL Script)
+After creating the users, you can run this SQL in your Supabase SQL Editor. 
+
+**IMPORTANT:** Before running, you should ideally replace the IDs below with the actual UUIDs from your `auth.users` table so that the profiles link correctly. However, even with these dummy IDs, you can see how the list and map would look.
+
+```sql
+-- CLEAR OLD DATA (Optional - Be careful!)
+-- DELETE FROM public.leak_requests;
+-- DELETE FROM public.technician_locations;
+-- DELETE FROM public.users;
+
+-- 1. Insert Sample Users (Profiles)
+-- Note: Replace these IDs with your actual Auth IDs for real testing
+INSERT INTO public.users (id, name, phone, role, is_available) VALUES
+('550e8400-e29b-41d4-a716-446655440000', 'Yacine Tech', '0555001122', 'technician', true),
+('550e8400-e29b-41d4-a716-446655440001', 'Sofiane Tech', '0555334455', 'technician', true),
+('550e8400-e29b-41d4-a716-446655440002', 'Amine Client', '0555667788', 'client', true);
+
+-- 2. Insert Technician Locations (Realistic coordinates near Algiers, Algeria)
+-- Tech 1 is very close to some requests
+INSERT INTO public.technician_locations (technician_id, lat, lng, updated_at) VALUES
+('550e8400-e29b-41d4-a716-446655440000', 36.7525, 3.0420, now()),
+('550e8400-e29b-41d4-a716-446655440001', 36.7200, 3.0100, now());
+
+-- 3. Insert Sample Leak Requests (Pending)
+INSERT INTO public.leak_requests (client_id, photo_url, description, client_lat, client_lng, status) VALUES
+('550e8400-e29b-41d4-a716-446655440002', 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a', 'Main pipe burst in front of the house', 36.7538, 3.0450, 'pending'),
+('550e8400-e29b-41d4-a716-446655440002', 'https://images.unsplash.com/photo-1542013936693-884638324262', 'Kitchen sink leaking heavily', 36.7580, 3.0520, 'pending'),
+('550e8400-e29b-41d4-a716-446655440002', 'https://images.unsplash.com/photo-1585704032915-c3400ca1f965', 'Street leak near the town square', 36.7800, 3.0800, 'pending');
+
+---
+
+## 3. Storage Permissions (CRITICAL)
+If you get a "Row-level security policy" error when uploading photos, run this SQL to allow uploads to the `image` bucket:
+
+```sql
+-- Allow authenticated users to upload files to the 'image' bucket
+CREATE POLICY "Allow authenticated uploads" ON storage.objects
+FOR INSERT TO authenticated
+WITH CHECK (bucket_id = 'image');
+
+-- Allow anyone to view files in the 'image' bucket (since it's public)
+CREATE POLICY "Allow public viewing" ON storage.objects
+FOR SELECT TO public
+USING (bucket_id = 'image');
+```
+```
+
+---
+
+## 3. How to Test
+1. **Login as Technician:** Use your tech account. You should see the "Available Jobs" list sorted by distance.
+2. **Accept Job:** Tap on a job, then tap "Accept Job". It should open Google Maps to the coordinates.
+3. **Login as Client:** Use your client account. Report a new leak and see it appear in the technician dashboard (refresh the list).
