@@ -1,3 +1,7 @@
+/*
+-- ALTER TABLE leak_requests ADD COLUMN price_confirmed boolean default false;
+*/
+
 import React, { useState } from 'react';
 import {
     View,
@@ -18,20 +22,45 @@ export default function JobDetailScreen({ route, navigation }) {
     const { job } = route.params;
     const [loading, setLoading] = useState(false);
     const [currentStatus, setCurrentStatus] = useState(job.status);
+    const [paymentSeen, setPaymentSeen] = useState(false);
     const { userId } = useAuth();
 
+    const formatMoneyDzd = (value) => {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return '—';
+        return `${n.toLocaleString()} DZD`;
+    };
+
     const handleAcceptJob = async () => {
+        if (!paymentSeen) {
+            Alert.alert('Confirm Payment', 'Please confirm you have seen the payment amount.');
+            return;
+        }
+
         setLoading(true);
         try {
+            const updateBase = {
+                status: 'assigned',
+                technician_id: userId,
+            };
+
             const { error: requestError } = await supabase
                 .from('leak_requests')
-                .update({
-                    status: 'assigned',
-                    technician_id: userId
-                })
+                .update({ ...updateBase, price_confirmed: true })
                 .eq('id', job.id);
 
-            if (requestError) throw requestError;
+            if (requestError) {
+                // If the column isn't in DB yet (schema cache), retry without it.
+                if (requestError.code === 'PGRST204') {
+                    const { error: retryError } = await supabase
+                        .from('leak_requests')
+                        .update(updateBase)
+                        .eq('id', job.id);
+                    if (retryError) throw retryError;
+                } else {
+                    throw requestError;
+                }
+            }
 
             await supabase
                 .from('users')
@@ -39,6 +68,7 @@ export default function JobDetailScreen({ route, navigation }) {
                 .eq('id', userId);
 
             setCurrentStatus('assigned');
+
             Alert.alert('Job Accepted', 'Opening navigation to client...');
 
             const lat = job.client_lat;
@@ -105,6 +135,21 @@ export default function JobDetailScreen({ route, navigation }) {
                         </Text>
                     </View>
 
+                    <Text style={styles.paymentLabel}>OFFERED PAYMENT</Text>
+                    <Text style={styles.paymentValue}>{formatMoneyDzd(job.price)}</Text>
+
+                    <View style={styles.confirmRow}>
+                        <Text style={styles.confirmText}>I confirm I have seen the payment amount</Text>
+                        <View style={{ flex: 1 }} />
+                        <Text
+                            onPress={() => setPaymentSeen((v) => !v)}
+                            style={[styles.checkbox, paymentSeen && styles.checkboxChecked]}
+                            accessibilityRole="checkbox"
+                        >
+                            {paymentSeen ? '✓' : ''}
+                        </Text>
+                    </View>
+
                     <Text style={styles.sectionTitle}>REPORTED ISSUE</Text>
                     <Text style={styles.description}>{job.description}</Text>
                 </AppCard>
@@ -115,6 +160,7 @@ export default function JobDetailScreen({ route, navigation }) {
                             title="Accept Job"
                             onPress={handleAcceptJob}
                             loading={loading}
+                            disabled={!paymentSeen}
                         />
                     )}
 
@@ -170,6 +216,51 @@ const styles = StyleSheet.create({
         ...theme.typography.caption,
         color: theme.colors.accent,
         fontWeight: '700',
+    },
+    paymentLabel: {
+        ...theme.typography.label,
+        color: theme.colors.textSecondary,
+        marginBottom: 6,
+    },
+    paymentValue: {
+        color: theme.colors.success,
+        fontSize: 26,
+        fontWeight: '800',
+        marginBottom: 14,
+    },
+    confirmRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: theme.colors.surface,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 12,
+        marginBottom: 18,
+    },
+    confirmText: {
+        ...theme.typography.body,
+        color: theme.colors.textPrimary,
+        fontWeight: '600',
+        paddingRight: 12,
+    },
+    checkbox: {
+        width: 24,
+        height: 24,
+        borderRadius: 6,
+        borderWidth: 2,
+        borderColor: theme.colors.border,
+        color: theme.colors.white,
+        textAlign: 'center',
+        textAlignVertical: 'center',
+        fontWeight: '900',
+        backgroundColor: 'transparent',
+        overflow: 'hidden',
+    },
+    checkboxChecked: {
+        borderColor: theme.colors.success,
+        backgroundColor: theme.colors.success,
     },
     sectionTitle: {
         ...theme.typography.label,

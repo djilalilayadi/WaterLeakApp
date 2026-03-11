@@ -14,6 +14,7 @@ import {
 import supabase from '../lib/supabase';
 import { getUserLocation } from '../lib/gps';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationContext';
 import { theme } from '../src/theme';
 import { AppHeader, AppCard, StatusBadge } from '../src/components/UI';
 
@@ -22,7 +23,29 @@ export default function TechnicianDashboard({ navigation }) {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [currentLocation, setCurrentLocation] = useState(null);
+    const [activeFilter, setActiveFilter] = useState('recent'); // recent | nearest | payment
     const { userId } = useAuth();
+    const { addNotification } = useNotifications();
+
+    const formatMoneyDzd = useCallback((value) => {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return '—';
+        return `${n.toLocaleString()} DZD`;
+    }, []);
+
+    const timeAgo = useCallback((iso) => {
+        if (!iso) return '';
+        const ts = new Date(iso).getTime();
+        if (!Number.isFinite(ts)) return '';
+        const diffSec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+        if (diffSec < 60) return `${diffSec} sec ago`;
+        const diffMin = Math.floor(diffSec / 60);
+        if (diffMin < 60) return `${diffMin} min ago`;
+        const diffHr = Math.floor(diffMin / 60);
+        if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? '' : 's'} ago`;
+        const diffDay = Math.floor(diffHr / 24);
+        return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`;
+    }, []);
 
     const updateLocationAndFetch = useCallback(async () => {
         try {
@@ -61,7 +84,7 @@ export default function TechnicianDashboard({ navigation }) {
                 const distance = R * c;
 
                 return { ...req, distance };
-            }).sort((a, b) => a.distance - b.distance);
+            });
 
             setRequests(enrichedRequests);
         } catch (error) {
@@ -73,9 +96,48 @@ export default function TechnicianDashboard({ navigation }) {
         }
     }, [userId]);
 
+    const displayedRequests = useCallback(() => {
+        const list = [...requests];
+        if (activeFilter === 'recent') {
+            return list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        }
+        if (activeFilter === 'payment') {
+            return list.sort((a, b) => (Number(b.price) || 0) - (Number(a.price) || 0));
+        }
+        return list.sort((a, b) => (a.distance ?? Number.POSITIVE_INFINITY) - (b.distance ?? Number.POSITIVE_INFINITY));
+    }, [requests, activeFilter]);
+
     useEffect(() => {
         updateLocationAndFetch();
     }, [updateLocationAndFetch]);
+
+    useEffect(() => {
+        const channel = supabase
+            .channel('public:leak_requests:pending_inserts')
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'leak_requests',
+                    filter: 'status=eq.pending',
+                },
+                () => {
+                    addNotification(
+                        'New Job Nearby 💧',
+                        'A new leak request was submitted near you',
+                        'info'
+                    );
+                    setRefreshing(true);
+                    updateLocationAndFetch();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [addNotification, updateLocationAndFetch]);
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -96,7 +158,12 @@ export default function TechnicianDashboard({ navigation }) {
                     </View>
                     <View style={styles.infoBottom}>
                         <Text style={styles.distanceText}>{item.distance.toFixed(2)} km</Text>
-                        <StatusBadge status={item.status} />
+                        <View style={styles.rightMeta}>
+                            <Text style={styles.timeAgoText}>{timeAgo(item.created_at)}</Text>
+                            <View style={styles.priceBadge}>
+                                <Text style={styles.priceText}>{formatMoneyDzd(item.price)}</Text>
+                            </View>
+                        </View>
                     </View>
                 </View>
             </AppCard>
@@ -114,6 +181,38 @@ export default function TechnicianDashboard({ navigation }) {
                 </View>
             </View>
 
+            <View style={styles.filterBar}>
+                <TouchableOpacity
+                    onPress={() => setActiveFilter('recent')}
+                    style={[styles.filterPill, activeFilter === 'recent' ? styles.filterPillActive : styles.filterPillInactive]}
+                    activeOpacity={0.85}
+                >
+                    <Text style={[styles.filterText, activeFilter === 'recent' ? styles.filterTextActive : styles.filterTextInactive]}>
+                        🕐 Recent
+                    </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    onPress={() => setActiveFilter('nearest')}
+                    style={[styles.filterPill, activeFilter === 'nearest' ? styles.filterPillActive : styles.filterPillInactive]}
+                    activeOpacity={0.85}
+                >
+                    <Text style={[styles.filterText, activeFilter === 'nearest' ? styles.filterTextActive : styles.filterTextInactive]}>
+                        📍 Nearest
+                    </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    onPress={() => setActiveFilter('payment')}
+                    style={[styles.filterPill, activeFilter === 'payment' ? styles.filterPillActive : styles.filterPillInactive]}
+                    activeOpacity={0.85}
+                >
+                    <Text style={[styles.filterText, activeFilter === 'payment' ? styles.filterTextActive : styles.filterTextInactive]}>
+                        💰 Payment
+                    </Text>
+                </TouchableOpacity>
+            </View>
+
             {loading && !refreshing ? (
                 <View style={styles.center}>
                     <ActivityIndicator size="large" color={theme.colors.accent} />
@@ -121,7 +220,7 @@ export default function TechnicianDashboard({ navigation }) {
                 </View>
             ) : (
                 <FlatList
-                    data={requests}
+                    data={displayedRequests()}
                     keyExtractor={(item) => item.id}
                     renderItem={renderItem}
                     contentContainerStyle={styles.list}
@@ -154,6 +253,36 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
         paddingHorizontal: 20,
         paddingVertical: 12,
+    },
+    filterBar: {
+        flexDirection: 'row',
+        gap: 10,
+        paddingHorizontal: 20,
+        paddingBottom: 10,
+    },
+    filterPill: {
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 999,
+        borderWidth: 1,
+    },
+    filterPillActive: {
+        backgroundColor: theme.colors.accent,
+        borderColor: theme.colors.accent,
+    },
+    filterPillInactive: {
+        backgroundColor: theme.colors.surface,
+        borderColor: theme.colors.border,
+    },
+    filterText: {
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    filterTextActive: {
+        color: theme.colors.white,
+    },
+    filterTextInactive: {
+        color: theme.colors.textSecondary,
     },
     onlineBadge: {
         flexDirection: 'row',
@@ -218,6 +347,27 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+    },
+    rightMeta: {
+        alignItems: 'flex-end',
+        gap: 6,
+    },
+    timeAgoText: {
+        ...theme.typography.caption,
+        color: theme.colors.textSecondary,
+    },
+    priceBadge: {
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 999,
+        backgroundColor: 'rgba(16, 185, 129, 0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(16, 185, 129, 0.35)',
+    },
+    priceText: {
+        color: theme.colors.success,
+        fontWeight: '800',
+        fontSize: 13,
     },
     distanceText: {
         ...theme.typography.caption,

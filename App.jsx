@@ -1,11 +1,24 @@
 import React from 'react';
 import { View, ActivityIndicator } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { NotificationProvider, useNotifications } from './context/NotificationContext';
 import AppNavigator from './navigation/AppNavigator';
 import { registerRootComponent } from 'expo';
-
 import { theme } from './src/theme';
+import NotificationBanner from './components/NotificationBanner';
+
+const navigationRef = createNavigationContainerRef();
+
+function GlobalNotificationBanner() {
+  const { notifications, clearNotification } = useNotifications();
+  return (
+    <NotificationBanner
+      notifications={notifications}
+      clearNotification={clearNotification}
+    />
+  );
+}
 
 function AppContent() {
   const { loading } = useAuth();
@@ -29,9 +42,12 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <NavigationContainer>
-        <AppContent />
-      </NavigationContainer>
+      <NotificationProvider>
+        <NavigationContainer ref={navigationRef}>
+          <GlobalNotificationBanner />
+          <AppContent />
+        </NavigationContainer>
+      </NotificationProvider>
     </AuthProvider>
   );
 }

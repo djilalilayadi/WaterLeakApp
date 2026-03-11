@@ -21,6 +21,7 @@ import { AppButton, AppInput, AppHeader } from '../src/components/UI';
 export default function ReportLeakScreen({ navigation }) {
     const [image, setImage] = useState(null);
     const [description, setDescription] = useState('');
+    const [price, setPrice] = useState('');
     const [loading, setLoading] = useState(false);
     const { userId } = useAuth();
 
@@ -52,6 +53,17 @@ export default function ReportLeakScreen({ navigation }) {
 
         if (!description.trim()) {
             Alert.alert('Error', 'Please provide a short description');
+            return;
+        }
+
+        if (!String(price ?? '').trim()) {
+            Alert.alert('Error', 'Please enter the offered price (DZD)');
+            return;
+        }
+
+        const parsedPrice = Number(String(price).replace(/[^\d]/g, ''));
+        if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+            Alert.alert('Error', 'Please enter a valid offered price (DZD)');
             return;
         }
 
@@ -90,7 +102,8 @@ export default function ReportLeakScreen({ navigation }) {
                         description: description,
                         client_lat: location.latitude,
                         client_lng: location.longitude,
-                        status: 'pending'
+                        status: 'pending',
+                        price: parsedPrice
                     }
                 ])
                 .select()
@@ -142,6 +155,14 @@ export default function ReportLeakScreen({ navigation }) {
                     onChangeText={setDescription}
                     multiline
                     height={100}
+                />
+
+                <AppInput
+                    label="Offered Price (DZD)"
+                    placeholder="e.g. 2000"
+                    value={price}
+                    onChangeText={setPrice}
+                    keyboardType="numeric"
                 />
 
                 <View style={{ marginTop: 'auto', paddingBottom: 20 }}>

@@ -10,12 +10,16 @@ import {
 import supabase from '../lib/supabase';
 import { theme } from '../src/theme';
 import { AppButton } from '../src/components/UI';
+import { useNotifications } from '../context/NotificationContext';
 
 export default function WaitingScreen({ route, navigation }) {
     const { requestId } = route.params;
     const [status, setStatus] = useState('pending');
     const [technicianName, setTechnicianName] = useState(null);
+    const [price, setPrice] = useState(null);
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
+    const { addNotification } = useNotifications();
+    const lastNotifiedStatusRef = useRef(null);
 
     // Animation ref
     const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -47,7 +51,7 @@ export default function WaitingScreen({ route, navigation }) {
             try {
                 const { data, error } = await supabase
                     .from('leak_requests')
-                    .select('status, users:technician_id(name)')
+                    .select('status, price, users:technician_id(name)')
                     .eq('id', requestId)
                     .single();
 
@@ -55,6 +59,7 @@ export default function WaitingScreen({ route, navigation }) {
 
                 if (data) {
                     setStatus(data.status);
+                    setPrice(data.price ?? null);
                     if (data.status === 'assigned' && data.users) {
                         setTechnicianName(data.users.name);
                     }
@@ -80,16 +85,33 @@ export default function WaitingScreen({ route, navigation }) {
                 async (payload) => {
                     const newStatus = payload.new.status;
                     setStatus(newStatus);
+                    if (payload?.new?.price !== undefined) {
+                        setPrice(payload.new.price ?? null);
+                    }
+
+                    if (lastNotifiedStatusRef.current !== newStatus) {
+                        if (newStatus === 'assigned') {
+                            addNotification("Technician Found! 🔧", "A technician is on the way", "success");
+                        } else if (newStatus === 'in_progress') {
+                            addNotification("Technician Arrived 📍", "Your technician is at your location", "info");
+                        } else if (newStatus === 'done') {
+                            addNotification("Job Complete ✅", "Your leak has been fixed!", "success");
+                        }
+                        lastNotifiedStatusRef.current = newStatus;
+                    }
 
                     if (newStatus === 'assigned') {
                         const { data } = await supabase
                             .from('leak_requests')
-                            .select('users:technician_id(name)')
+                            .select('price, users:technician_id(name)')
                             .eq('id', requestId)
                             .single();
 
                         if (data?.users) {
                             setTechnicianName(data.users.name);
+                        }
+                        if (data?.price !== undefined) {
+                            setPrice(data.price ?? null);
                         }
                     }
                 }
@@ -100,7 +122,7 @@ export default function WaitingScreen({ route, navigation }) {
             supabase.removeChannel(channel);
             clearInterval(timer);
         };
-    }, [requestId]);
+    }, [requestId, addNotification]);
 
     const handleCancel = async () => {
         Alert.alert(
@@ -151,6 +173,14 @@ export default function WaitingScreen({ route, navigation }) {
                         <>
                             <Text style={[styles.title, { color: theme.colors.success }]}>Technician Found!</Text>
                             <Text style={styles.techName}>{technicianName || 'Technician'}</Text>
+                            {price !== null && (
+                                <>
+                                    <Text style={styles.priceText}>
+                                        Agreed payment: {Number(price).toLocaleString()} DZD
+                                    </Text>
+                                    <Text style={styles.captionText}>Pay your technician upon arrival</Text>
+                                </>
+                            )}
                             <Text style={styles.subtitle}>Professional is on the way to your location.</Text>
                         </>
                     ) : (
@@ -164,6 +194,14 @@ export default function WaitingScreen({ route, navigation }) {
                     title="Cancel Request"
                     onPress={handleCancel}
                     variant="outline"
+                />
+
+                <View style={{ height: 12 }} />
+
+                <AppButton
+                    title="Back Home"
+                    onPress={() => navigation.navigate('ReportLeak')}
+                    variant="primary"
                 />
             </View>
         </SafeAreaView>
@@ -212,6 +250,19 @@ const styles = StyleSheet.create({
         ...theme.typography.body,
         color: theme.colors.textSecondary,
         textAlign: 'center',
+    },
+    priceText: {
+        ...theme.typography.body,
+        color: theme.colors.success,
+        fontWeight: '800',
+        textAlign: 'center',
+        marginBottom: 6,
+    },
+    captionText: {
+        ...theme.typography.caption,
+        color: theme.colors.textSecondary,
+        textAlign: 'center',
+        marginBottom: 10,
     },
     footer: {
         padding: 20,
