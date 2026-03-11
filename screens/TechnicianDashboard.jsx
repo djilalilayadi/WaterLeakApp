@@ -179,6 +179,14 @@ export default function TechnicianDashboard({ navigation }) {
                     <View style={styles.greenDot} />
                     <Text style={styles.onlineText}>You are online</Text>
                 </View>
+
+                <TouchableOpacity
+                    onPress={() => navigation.navigate('TechnicianMyJobs')}
+                    activeOpacity={0.85}
+                    style={styles.myJobsPill}
+                >
+                    <Text style={styles.myJobsText}>My Jobs</Text>
+                </TouchableOpacity>
             </View>
 
             <View style={styles.filterBar}>
@@ -250,9 +258,23 @@ const styles = StyleSheet.create({
     },
     statusBar: {
         flexDirection: 'row',
-        justifyContent: 'flex-end',
+        justifyContent: 'space-between',
+        alignItems: 'center',
         paddingHorizontal: 20,
         paddingVertical: 12,
+    },
+    myJobsPill: {
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 999,
+        backgroundColor: theme.colors.surface,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+    },
+    myJobsText: {
+        fontSize: 13,
+        fontWeight: '800',
+        color: theme.colors.textPrimary,
     },
     filterBar: {
         flexDirection: 'row',

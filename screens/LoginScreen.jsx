@@ -42,7 +42,7 @@ export default function LoginScreen({ navigation }) {
         login(data.user, role);
 
         if (role === 'client') {
-          navigation.navigate('ReportLeak');
+          navigation.navigate('ClientDashboard');
         } else if (role === 'technician') {
           navigation.navigate('TechnicianDashboard');
         } else {

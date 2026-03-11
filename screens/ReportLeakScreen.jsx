@@ -171,6 +171,12 @@ export default function ReportLeakScreen({ navigation }) {
                         onPress={handleSubmit}
                         loading={loading}
                     />
+
+                    <AppButton
+                        title="Back to My Requests"
+                        onPress={() => navigation.navigate('ClientDashboard')}
+                        variant="outline"
+                    />
                 </View>
             </ScrollView>
         </View>

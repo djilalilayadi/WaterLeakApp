@@ -56,7 +56,7 @@ export default function SignUpScreen({ navigation }) {
                 login(data.user, role);
 
                 if (role === 'client') {
-                    navigation.navigate('ReportLeak');
+                    navigation.navigate('ClientDashboard');
                 } else {
                     navigation.navigate('TechnicianDashboard');
                 }

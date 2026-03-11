@@ -200,7 +200,7 @@ export default function WaitingScreen({ route, navigation }) {
 
                 <AppButton
                     title="Back Home"
-                    onPress={() => navigation.navigate('ReportLeak')}
+                    onPress={() => navigation.navigate('ClientDashboard')}
                     variant="primary"
                 />
             </View>

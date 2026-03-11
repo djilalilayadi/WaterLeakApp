@@ -8,6 +8,8 @@ import WaitingScreen from '../screens/WaitingScreen.jsx';
 import TechnicianDashboard from '../screens/TechnicianDashboard.jsx';
 import JobDetailScreen from '../screens/JobDetailScreen.jsx';
 import SignUpScreen from '../screens/SignUpScreen.jsx';
+import ClientDashboard from '../screens/ClientDashboard.jsx';
+import TechnicianMyJobs from '../screens/TechnicianMyJobs.jsx';
 
 const Stack = createStackNavigator();
 
@@ -47,6 +49,14 @@ export default function AppNavigator() {
                     {userRole === 'client' ? (
                         <>
                             <Stack.Screen
+                                name="ClientDashboard"
+                                component={ClientDashboard}
+                                options={{
+                                    title: 'My Requests',
+                                    headerRight: () => <LogoutButton />
+                                }}
+                            />
+                            <Stack.Screen
                                 name="ReportLeak"
                                 component={ReportLeakScreen}
                                 options={{
@@ -66,6 +76,7 @@ export default function AppNavigator() {
                                     headerRight: () => <LogoutButton />
                                 }}
                             />
+                            <Stack.Screen name="TechnicianMyJobs" component={TechnicianMyJobs} options={{ title: 'My Jobs' }} />
                             <Stack.Screen name="JobDetail" component={JobDetailScreen} options={{ title: 'Job Details' }} />
                         </>
                     )}
