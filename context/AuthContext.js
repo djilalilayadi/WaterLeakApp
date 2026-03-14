@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
 import supabase from '../lib/supabase';
 
 const AuthContext = createContext();
@@ -8,6 +8,7 @@ export const AuthProvider = ({ children }) => {
     const [userRole, setUserRole] = useState(null);
     const [userId, setUserId] = useState(null);
     const [loading, setLoading] = useState(true);
+    const userRoleRef = useRef(null);
 
     useEffect(() => {
         // Check for active session on mount
@@ -26,6 +27,7 @@ export const AuthProvider = ({ children }) => {
                     if (profile) {
                         setUser(session.user);
                         setUserRole(profile.role);
+                        userRoleRef.current = profile.role;
                         setUserId(session.user.id);
                     }
                 }
@@ -43,11 +45,11 @@ export const AuthProvider = ({ children }) => {
             if (event === 'SIGNED_OUT') {
                 setUser(null);
                 setUserRole(null);
+                userRoleRef.current = null;
                 setUserId(null);
             } else if (session?.user) {
-                // Roles are usually set during login/signup, 
-                // but checking here ensures state consistency
-                if (!userRole) {
+                // Use ref to avoid stale closure — only re-fetch if role is unknown
+                if (!userRoleRef.current) {
                     const { data: profile } = await supabase
                         .from('users')
                         .select('role')
@@ -55,6 +57,7 @@ export const AuthProvider = ({ children }) => {
                         .single();
                     if (profile) {
                         setUserRole(profile.role);
+                        userRoleRef.current = profile.role;
                     }
                 }
                 setUser(session.user);
@@ -68,6 +71,7 @@ export const AuthProvider = ({ children }) => {
     const login = (userData, role) => {
         setUser(userData);
         setUserRole(role);
+        userRoleRef.current = role;
         setUserId(userData.id);
     };
 
@@ -76,6 +80,7 @@ export const AuthProvider = ({ children }) => {
             await supabase.auth.signOut();
             setUser(null);
             setUserRole(null);
+            userRoleRef.current = null;
             setUserId(null);
         } catch (error) {
             console.error('Error signing out:', error);

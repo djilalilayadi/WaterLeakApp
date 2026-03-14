@@ -18,12 +18,23 @@ import { useNotifications } from '../context/NotificationContext';
 import { theme } from '../src/theme';
 import { AppHeader, AppCard, StatusBadge } from '../src/components/UI';
 
+const SEVERITY_CONFIG = {
+    critical: { color: '#EF4444', emoji: '🔴', label: 'Critical' },
+    high:     { color: '#F97316', emoji: '🟠', label: 'High' },
+    medium:   { color: '#EAB308', emoji: '🟡', label: 'Medium' },
+    low:      { color: '#22C55E', emoji: '🟢', label: 'Low' },
+    unknown:  { color: '#6B7280', emoji: '⚪', label: '—' },
+};
+
+const getSeverityConfig = (severity) =>
+    SEVERITY_CONFIG[severity] || SEVERITY_CONFIG.unknown;
+
 export default function TechnicianDashboard({ navigation }) {
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [currentLocation, setCurrentLocation] = useState(null);
-    const [activeFilter, setActiveFilter] = useState('recent'); // recent | nearest | payment
+    const [activeFilter, setActiveFilter] = useState('recent'); // recent | nearest | payment | urgent
     const { userId } = useAuth();
     const { addNotification } = useNotifications();
 
@@ -104,6 +115,15 @@ export default function TechnicianDashboard({ navigation }) {
         if (activeFilter === 'payment') {
             return list.sort((a, b) => (Number(b.price) || 0) - (Number(a.price) || 0));
         }
+        if (activeFilter === 'urgent') {
+            const severityOrder = { critical: 0, high: 1, medium: 2, low: 3, unknown: 4 };
+            return list.sort((a, b) => {
+                const sa = severityOrder[a.severity] ?? 4;
+                const sb = severityOrder[b.severity] ?? 4;
+                if (sa !== sb) return sa - sb;
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            });
+        }
         return list.sort((a, b) => (a.distance ?? Number.POSITIVE_INFINITY) - (b.distance ?? Number.POSITIVE_INFINITY));
     }, [requests, activeFilter]);
 
@@ -144,31 +164,49 @@ export default function TechnicianDashboard({ navigation }) {
         updateLocationAndFetch();
     };
 
-    const renderItem = ({ item }) => (
-        <TouchableOpacity
-            onPress={() => navigation.navigate('JobDetail', { job: item })}
-            activeOpacity={0.7}
-        >
-            <AppCard style={styles.card}>
-                <Image source={{ uri: item.photo_url }} style={styles.thumbnail} />
-                <View style={styles.info}>
-                    <View style={styles.infoTop}>
-                        <Text style={styles.description} numberOfLines={1}>{item.description}</Text>
-                        <Text style={styles.chevron}>→</Text>
-                    </View>
-                    <View style={styles.infoBottom}>
-                        <Text style={styles.distanceText}>{item.distance.toFixed(2)} km</Text>
-                        <View style={styles.rightMeta}>
-                            <Text style={styles.timeAgoText}>{timeAgo(item.created_at)}</Text>
-                            <View style={styles.priceBadge}>
-                                <Text style={styles.priceText}>{formatMoneyDzd(item.price)}</Text>
+    const renderItem = ({ item }) => {
+        const sevConfig = getSeverityConfig(item.severity);
+        return (
+            <TouchableOpacity
+                onPress={() => navigation.navigate('JobDetail', { job: item })}
+                activeOpacity={0.7}
+            >
+                <AppCard style={styles.card}>
+                    <Image source={{ uri: item.photo_url }} style={styles.thumbnail} />
+                    <View style={styles.info}>
+                        <View style={styles.infoTop}>
+                            <Text style={styles.description} numberOfLines={1}>{item.description}</Text>
+                            <Text style={styles.chevron}>→</Text>
+                        </View>
+                        <View style={styles.infoBottom}>
+                            <Text style={styles.distanceText}>{item.distance.toFixed(2)} km</Text>
+                            <View style={styles.rightMeta}>
+                                <Text style={styles.timeAgoText}>{timeAgo(item.created_at)}</Text>
+                                <View style={styles.bottomBadges}>
+                                    {/* Severity Badge */}
+                                    <View style={[styles.severityPill, { backgroundColor: sevConfig.color + '20', borderColor: sevConfig.color + '40' }]}>
+                                        <Text style={styles.severityPillEmoji}>{sevConfig.emoji}</Text>
+                                        <Text style={[styles.severityPillText, { color: sevConfig.color }]}>{sevConfig.label}</Text>
+                                    </View>
+                                    {/* Price Badge */}
+                                    <View style={styles.priceBadge}>
+                                        <Text style={styles.priceText}>{formatMoneyDzd(item.price)}</Text>
+                                    </View>
+                                </View>
                             </View>
                         </View>
                     </View>
-                </View>
-            </AppCard>
-        </TouchableOpacity>
-    );
+                </AppCard>
+            </TouchableOpacity>
+        );
+    };
+
+    const FILTERS = [
+        { key: 'recent', label: '🕐 Recent' },
+        { key: 'nearest', label: '📍 Nearest' },
+        { key: 'payment', label: '💰 Payment' },
+        { key: 'urgent', label: '🔴 Urgent' },
+    ];
 
     return (
         <View style={styles.container}>
@@ -190,35 +228,18 @@ export default function TechnicianDashboard({ navigation }) {
             </View>
 
             <View style={styles.filterBar}>
-                <TouchableOpacity
-                    onPress={() => setActiveFilter('recent')}
-                    style={[styles.filterPill, activeFilter === 'recent' ? styles.filterPillActive : styles.filterPillInactive]}
-                    activeOpacity={0.85}
-                >
-                    <Text style={[styles.filterText, activeFilter === 'recent' ? styles.filterTextActive : styles.filterTextInactive]}>
-                        🕐 Recent
-                    </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    onPress={() => setActiveFilter('nearest')}
-                    style={[styles.filterPill, activeFilter === 'nearest' ? styles.filterPillActive : styles.filterPillInactive]}
-                    activeOpacity={0.85}
-                >
-                    <Text style={[styles.filterText, activeFilter === 'nearest' ? styles.filterTextActive : styles.filterTextInactive]}>
-                        📍 Nearest
-                    </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    onPress={() => setActiveFilter('payment')}
-                    style={[styles.filterPill, activeFilter === 'payment' ? styles.filterPillActive : styles.filterPillInactive]}
-                    activeOpacity={0.85}
-                >
-                    <Text style={[styles.filterText, activeFilter === 'payment' ? styles.filterTextActive : styles.filterTextInactive]}>
-                        💰 Payment
-                    </Text>
-                </TouchableOpacity>
+                {FILTERS.map(f => (
+                    <TouchableOpacity
+                        key={f.key}
+                        onPress={() => setActiveFilter(f.key)}
+                        style={[styles.filterPill, activeFilter === f.key ? styles.filterPillActive : styles.filterPillInactive]}
+                        activeOpacity={0.85}
+                    >
+                        <Text style={[styles.filterText, activeFilter === f.key ? styles.filterTextActive : styles.filterTextInactive]}>
+                            {f.label}
+                        </Text>
+                    </TouchableOpacity>
+                ))}
             </View>
 
             {loading && !refreshing ? (
@@ -278,12 +299,12 @@ const styles = StyleSheet.create({
     },
     filterBar: {
         flexDirection: 'row',
-        gap: 10,
+        gap: 8,
         paddingHorizontal: 20,
         paddingBottom: 10,
     },
     filterPill: {
-        paddingHorizontal: 12,
+        paddingHorizontal: 10,
         paddingVertical: 8,
         borderRadius: 999,
         borderWidth: 1,
@@ -297,7 +318,7 @@ const styles = StyleSheet.create({
         borderColor: theme.colors.border,
     },
     filterText: {
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: '700',
     },
     filterTextActive: {
@@ -373,6 +394,28 @@ const styles = StyleSheet.create({
     rightMeta: {
         alignItems: 'flex-end',
         gap: 6,
+    },
+    bottomBadges: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    severityPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 999,
+        borderWidth: 1,
+        gap: 4,
+    },
+    severityPillEmoji: {
+        fontSize: 10,
+    },
+    severityPillText: {
+        fontSize: 10,
+        fontWeight: '800',
+        textTransform: 'uppercase',
     },
     timeAgoText: {
         ...theme.typography.caption,

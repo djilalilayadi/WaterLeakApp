@@ -18,6 +18,17 @@ import { useAuth } from '../context/AuthContext';
 import { theme } from '../src/theme';
 import { AppHeader, AppCard, StatusBadge, AppButton } from '../src/components/UI';
 
+const SEVERITY_CONFIG = {
+    critical: { color: '#EF4444', emoji: '🔴', label: 'Critical' },
+    high:     { color: '#F97316', emoji: '🟠', label: 'High' },
+    medium:   { color: '#EAB308', emoji: '🟡', label: 'Medium' },
+    low:      { color: '#22C55E', emoji: '🟢', label: 'Low' },
+    unknown:  { color: '#6B7280', emoji: '⚪', label: 'Unknown' },
+};
+
+const getSeverityConfig = (severity) =>
+    SEVERITY_CONFIG[severity] || SEVERITY_CONFIG.unknown;
+
 export default function JobDetailScreen({ route, navigation }) {
     const { job } = route.params;
     const [loading, setLoading] = useState(false);
@@ -117,6 +128,9 @@ export default function JobDetailScreen({ route, navigation }) {
         }
     };
 
+    const hasSeverity = job.severity && job.severity !== 'unknown';
+    const sevConfig = getSeverityConfig(job.severity);
+
     return (
         <View style={styles.container}>
             <AppHeader title="Job Details" showBack onBack={() => navigation.goBack()} />
@@ -153,6 +167,33 @@ export default function JobDetailScreen({ route, navigation }) {
                     <Text style={styles.sectionTitle}>REPORTED ISSUE</Text>
                     <Text style={styles.description}>{job.description}</Text>
                 </AppCard>
+
+                {/* AI Analysis Section */}
+                {hasSeverity && (
+                    <AppCard style={styles.aiCard}>
+                        <Text style={styles.aiSectionTitle}>AI ANALYSIS</Text>
+
+                        <View style={[styles.aiSeverityPill, { backgroundColor: sevConfig.color + '20' }]}>
+                            <Text style={styles.aiSeverityEmoji}>{sevConfig.emoji}</Text>
+                            <Text style={[styles.aiSeverityText, { color: sevConfig.color }]}>
+                                {sevConfig.label}
+                            </Text>
+                        </View>
+
+                        {job.ai_description ? (
+                            <Text style={styles.aiDescriptionText}>{job.ai_description}</Text>
+                        ) : null}
+
+                        {job.estimated_flow ? (
+                            <View style={styles.aiFlowRow}>
+                                <Text style={styles.aiFlowLabel}>Estimated Flow:</Text>
+                                <Text style={styles.aiFlowValue}>{job.estimated_flow}</Text>
+                            </View>
+                        ) : null}
+
+                        <Text style={styles.aiFooter}>Analyzed by Gemini AI</Text>
+                    </AppCard>
+                )}
 
                 <View style={styles.buttonGroup}>
                     {currentStatus === 'pending' && (
@@ -273,5 +314,60 @@ const styles = StyleSheet.create({
     },
     buttonGroup: {
         gap: 12,
+    },
+    // AI Analysis Card
+    aiCard: {
+        marginBottom: 24,
+    },
+    aiSectionTitle: {
+        ...theme.typography.label,
+        color: theme.colors.textSecondary,
+        marginBottom: 14,
+    },
+    aiSeverityPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        alignSelf: 'flex-start',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 999,
+        marginBottom: 14,
+        gap: 8,
+    },
+    aiSeverityEmoji: {
+        fontSize: 18,
+    },
+    aiSeverityText: {
+        fontSize: 16,
+        fontWeight: '800',
+        letterSpacing: 0.8,
+        textTransform: 'uppercase',
+    },
+    aiDescriptionText: {
+        ...theme.typography.body,
+        color: theme.colors.textPrimary,
+        marginBottom: 10,
+    },
+    aiFlowRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 14,
+    },
+    aiFlowLabel: {
+        ...theme.typography.caption,
+        color: theme.colors.textSecondary,
+        fontWeight: '600',
+    },
+    aiFlowValue: {
+        ...theme.typography.caption,
+        color: theme.colors.textPrimary,
+        fontWeight: '700',
+    },
+    aiFooter: {
+        ...theme.typography.caption,
+        color: theme.colors.textSecondary,
+        fontStyle: 'italic',
+        fontSize: 11,
     },
 });
